@@ -1,5 +1,6 @@
 import gaseto/crypto as gaseto_crypto
 import gaseto/hkdf
+import gaseto/pae
 import gaseto/rsa
 import gaseto/token.{
   type PasetoPurpose, type Token, Local, PasetoV1, Public, Token,
@@ -9,7 +10,6 @@ import gleam/crypto
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom
 import gleam/int
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 
@@ -54,13 +54,9 @@ fn decrypt_public(
   use decoded_body <- result.try(decode_body(encoded_body))
 
   use footer_bits: BitArray <- result.try(
-    result.map_error(
-      case encoded_footer {
-        Some(f) -> bit_array.base64_url_decode(f)
-        None -> Ok(<<>>)
-      },
-      fn(_) { InvalidTokenFormat("Token Footer is not base64") },
-    ),
+    result.map_error(pae.decode_footer(encoded_footer), fn(message) {
+      InvalidTokenFormat(message)
+    }),
   )
   use public_key <- result.try({
     let pem_entries =
@@ -105,7 +101,7 @@ fn decrypt_public(
 
   // Reconstruct the `m2` that should have been signed.
   let m2: BitArray =
-    pre_auth_encode([
+    pae.pre_auth_encode([
       bit_array.from_string(pub_header),
       payload_bits,
       footer_bits,
@@ -120,11 +116,7 @@ fn decrypt_public(
       create_pss_options(),
     )
 
-  let footer = case bit_array.to_string(footer_bits) {
-    Ok("") -> None
-    Ok(result) -> Some(result)
-    Error(_) -> None
-  }
+  let footer: Option(String) = pae.footer_bytes_to_option(footer_bits)
 
   use payload <- result.try(case bit_array.to_string(payload_bits) {
     Ok(result) -> Ok(result)
@@ -164,13 +156,9 @@ fn decrypt_local(
   use decoded_body <- result.try(decode_body(encoded_body))
 
   use footer_bits: BitArray <- result.try(
-    result.map_error(
-      case encoded_footer {
-        Some(f) -> bit_array.base64_url_decode(f)
-        None -> Ok(<<>>)
-      },
-      fn(_) { InvalidTokenFormat("Token Footer is not base64") },
-    ),
+    result.map_error(pae.decode_footer(encoded_footer), fn(message) {
+      InvalidTokenFormat(message)
+    }),
   )
 
   // PASETO v1 local structure: nonce (32) + ciphertext + tag (48)
@@ -216,7 +204,7 @@ fn decrypt_local(
 
   // Verify HMAC-SHA384 authentication
   let pre_auth_data =
-    pre_auth_encode([
+    pae.pre_auth_encode([
       bit_array.from_string(priv_header),
       nonce,
       ciphertext,
@@ -244,11 +232,7 @@ fn decrypt_local(
     ciphertext,
   ))
 
-  let footer = case bit_array.to_string(footer_bits) {
-    Ok("") -> None
-    Ok(result) -> Some(result)
-    Error(_) -> None
-  }
+  let footer: Option(String) = pae.footer_bytes_to_option(footer_bits)
 
   use payload <- result.try(case bit_array.to_string(plaintext) {
     Ok(result) -> Ok(result)
@@ -446,7 +430,7 @@ fn encrypt_public(
   let pem_bytes: BitArray = bit_array.from_string(private_key_pem)
   use private_key <- result.try(decode_private_key(pem_bytes))
   let pre_authentication: BitArray =
-    pre_auth_encode([
+    pae.pre_auth_encode([
       bit_array.from_string(pub_header),
       payload_bits,
       footer_bits,
@@ -578,7 +562,7 @@ fn aead_encrypt(
     )
 
   let pre_authentication: BitArray =
-    pre_auth_encode([
+    pae.pre_auth_encode([
       bit_array.from_string(header),
       nonce,
       ciphertext,
@@ -598,45 +582,3 @@ fn aead_encrypt(
   Ok(Token(PasetoV1, Local, body_base64, footer_string))
 }
 
-/// Pre-authenticates a list of bit arrays for PASETO.
-///
-/// This function implements the PASETO `PAE` (pre-authentication encoding) scheme.
-/// It prepends the length of the list, followed by the length of each element,
-/// and then the elements themselves. This ensures that the message is authenticated
-/// in a deterministic and secure way, preventing malicious modifications.
-///
-/// ## Parameters
-///
-/// - `parts`: A `List(BitArray)` of the token's components (e.g., header, payload, footer).
-///
-/// ## Returns
-///
-/// The single `BitArray` resulting from the pre-authentication encoding.
-fn pre_auth_encode(parts: List(BitArray)) -> BitArray {
-  let start = le64_encode(list.length(parts))
-  list.fold(parts, start, fn(acc, part) {
-    let part_len = bit_array.byte_size(part)
-    bit_array.concat([acc, le64_encode(part_len), part])
-  })
-}
-
-/// Encodes an integer as an 8-byte little-endian bit array.
-///
-/// This function is a helper for the PASETO `PAE` scheme, which requires integer
-/// lengths to be encoded in a fixed-size, little-endian format. It's equivalent
-/// to a 64-bit unsigned integer (`u64`).
-///
-/// ## Parameters
-///
-/// - `value`: The integer to encode.
-///
-/// ## Returns
-///
-/// The encoded integer as an 8-byte `BitArray`.
-fn le64_encode(value: Int) -> BitArray {
-  list.range(0, 7)
-  |> list.map(fn(i) {
-    <<int.bitwise_and(int.bitwise_shift_right(value, i * 8), 255)>>
-  })
-  |> bit_array.concat()
-}
