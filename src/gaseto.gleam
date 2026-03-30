@@ -1,7 +1,8 @@
 import gaseto/paseto_v1
+import gaseto/paseto_v3
 import gaseto/token.{
-  type PasetoPurpose, type PasetoVersion, type Token, Local, PasetoV1, PasetoV2,
-  PasetoV3, PasetoV4, Public,
+  type PasetoVersion, type Token, Local, PasetoV1, PasetoV2, PasetoV3, PasetoV4,
+  Public,
 }
 import gleam/option.{type Option}
 import gleam/result
@@ -13,6 +14,13 @@ pub type Error {
   EncodeTokenError
   DecodeTokenError(message: String)
   NotImplementedError
+}
+
+/// The key material passed to encrypt and decrypt.
+/// Use LocalKey for symmetric local tokens and KeyPair for asymmetric public tokens.
+pub type Key {
+  LocalKey(key: String)
+  KeyPair(secret_key: String, public_key: String)
 }
 
 pub fn to_string(token: Token) -> String {
@@ -27,51 +35,75 @@ pub fn to_string(token: Token) -> String {
   }
 }
 
-pub fn decrypt(token: String, decode_key: String) -> Result(Token, Error) {
-  use
-    #(version, purpose, payload, footer): #(
-      String,
-      String,
-      String,
-      option.Option(String),
-    )
-  <- result.try(parse_token_parts(token))
-  use paseto_version <- result.try(parse_paseto_version(version))
-  use paseto_purpose <- result.try(parse_paseto_purpose(purpose))
-
-  case paseto_version {
-    PasetoV4 -> Error(NotImplementedError)
-    PasetoV3 -> Error(NotImplementedError)
-    PasetoV2 -> Error(NotImplementedError)
-    PasetoV1 -> {
-      case paseto_v1.decrypt(paseto_purpose, payload, footer, decode_key) {
+/// Encrypts or signs a payload depending on the key type.
+/// LocalKey produces a local (encrypted) token; KeyPair produces a public (signed) token.
+pub fn encrypt(
+  payload: String,
+  with_key: Key,
+  with_version: PasetoVersion,
+  with_footer: Option(String),
+) -> Result(Token, Error) {
+  case with_version, with_key {
+    PasetoV1, LocalKey(key) ->
+      case paseto_v1.encrypt(Local, key, payload, with_footer) {
         Ok(token) -> Ok(token)
-        Error(error) -> {
-          Error(DecodeTokenError("Neij"))
-        }
+        Error(_e) -> Error(EncodeTokenError)
       }
-    }
+    PasetoV1, KeyPair(secret_key, _) ->
+      case paseto_v1.encrypt(Public, secret_key, payload, with_footer) {
+        Ok(token) -> Ok(token)
+        Error(_e) -> Error(EncodeTokenError)
+      }
+    PasetoV3, LocalKey(key) ->
+      case paseto_v3.encrypt(Local, key, payload, with_footer) {
+        Ok(token) -> Ok(token)
+        Error(_e) -> Error(EncodeTokenError)
+      }
+    PasetoV3, KeyPair(secret_key, public_key) ->
+      case
+        paseto_v3.encrypt_public(secret_key, public_key, payload, with_footer, "")
+      {
+        Ok(token) -> Ok(token)
+        Error(_e) -> Error(EncodeTokenError)
+      }
+    _, _ -> Error(NotImplementedError)
   }
 }
 
-pub fn encrypt(
-  payload: String,
-  with_key: String,
-  with_version: PasetoVersion,
-  with_purpose: PasetoPurpose,
-  with_footer: Option(String),
-) -> Result(Token, Error) {
-  case with_version {
-    PasetoV1 ->
-      case paseto_v1.encrypt(with_purpose, with_key, payload, with_footer) {
+/// Decrypts or verifies a token depending on the key type.
+/// LocalKey is used for local tokens; KeyPair uses the public_key for verification.
+pub fn decrypt(token: String, with_key: Key) -> Result(Token, Error) {
+  use #(version, purpose, payload, footer): #(
+    String,
+    String,
+    String,
+    option.Option(String),
+  ) <- result.try(parse_token_parts(token))
+  use paseto_version <- result.try(parse_paseto_version(version))
+  use paseto_purpose <- result.try(parse_paseto_purpose(purpose))
+
+  case paseto_version, with_key {
+    PasetoV1, LocalKey(key) ->
+      case paseto_v1.decrypt(paseto_purpose, payload, footer, key) {
         Ok(token) -> Ok(token)
-        Error(e) -> {
-          Error(EncodeTokenError)
-        }
+        Error(_e) -> Error(DecodeTokenError("V1 decryption failed"))
       }
-    PasetoV2 -> Error(NotImplementedError)
-    PasetoV3 -> Error(NotImplementedError)
-    PasetoV4 -> Error(NotImplementedError)
+    PasetoV1, KeyPair(_, public_key) ->
+      case paseto_v1.decrypt(paseto_purpose, payload, footer, public_key) {
+        Ok(token) -> Ok(token)
+        Error(_e) -> Error(DecodeTokenError("V1 verification failed"))
+      }
+    PasetoV3, LocalKey(key) ->
+      case paseto_v3.decrypt(paseto_purpose, payload, footer, key, "") {
+        Ok(token) -> Ok(token)
+        Error(_e) -> Error(DecodeTokenError("V3 decryption failed"))
+      }
+    PasetoV3, KeyPair(_, public_key) ->
+      case paseto_v3.decrypt(paseto_purpose, payload, footer, public_key, "") {
+        Ok(token) -> Ok(token)
+        Error(_e) -> Error(DecodeTokenError("V3 verification failed"))
+      }
+    _, _ -> Error(NotImplementedError)
   }
 }
 
@@ -105,14 +137,14 @@ fn paseto_version_to_string(version: PasetoVersion) -> String {
   }
 }
 
-fn paseto_purpose_to_string(purpose: PasetoPurpose) -> String {
+fn paseto_purpose_to_string(purpose: token.PasetoPurpose) -> String {
   case purpose {
     Public -> "public"
     Local -> "local"
   }
 }
 
-fn parse_paseto_purpose(purpose: String) -> Result(PasetoPurpose, Error) {
+fn parse_paseto_purpose(purpose: String) -> Result(token.PasetoPurpose, Error) {
   case string.lowercase(purpose) {
     "local" -> Ok(Local)
     "public" -> Ok(Public)
