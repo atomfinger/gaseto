@@ -1,0 +1,34 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: OTP ${{ matrix.otp }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest OTP Gaseto supports, and the newest
+        otp: ["27", "29"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          gleam-version: "1.19.2"
+          rebar3-version: "3"
+      - run: gleam format --check src test
+      - run: gleam deps download
+      - run: gleam test
+      - run: gleam docs build
+      - name: Test the demos
+        run: |
+          for demo in demo/*/; do
+            echo "::group::$demo"
+            (cd "$demo" && gleam format --check src test && gleam test)
+            echo "::endgroup::"
+          done

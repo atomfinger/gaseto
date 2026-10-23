@@ -1,24 +1,21 @@
-# gaseto
+# Gaseto
 
 [![Package Version](https://img.shields.io/hexpm/v/gaseto)](https://hex.pm/packages/gaseto)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/gaseto/)
 
-`gaseto` is a Gleam implementation of [PASETO (Platform-Agnostic SEcurity TOkens)](https://paseto.io/).
+Gaseto is a Gleam implementation of [PASETO (Platform-Agnostic SEcurity TOkens)](https://paseto.io/).
 
-PASETO is a specification for secure stateless tokens. Unlike JWT, which gives developers too many choices, PASETO specifies a small number of cryptographic suites to use.
+New to PASETO? These explain what it is and why it exists:
 
-> **Note:** This library targets the Erlang runtime only. JavaScript is not supported.
+- [paseto.io](https://paseto.io/): what PASETO is.
+- [No Way, JOSE!](https://paragonie.com/blog/2017/03/jwt-json-web-tokens-is-bad-standard-that-everyone-should-avoid): the weaknesses of JWT that PASETO fixes.
+- [The PASETO specification](https://github.com/paseto-standard/paseto-spec): the details this library follows.
 
-### 🚧 This project is in construction. Not production ready 🚧
+> **Note:** This library targets the Erlang runtime only. JavaScript is not currently supported.
 
 ## Features
 
-- **PASETO V3** _(recommended)_
-  - `v3.local`: Symmetric authenticated encryption using AES-256-CTR and HMAC-SHA-384, with HKDF-SHA-384 key derivation.
-  - `v3.public`: Asymmetric authentication using ECDSA with P-384 and SHA-384.
-- **PASETO V1** _(deprecated — the PASETO standard itself has deprecated V1 in favour of V3)_
-  - `v1.local`: Symmetric authenticated encryption using AES-256-CTR and HMAC-SHA-384.
-  - `v1.public`: Asymmetric authentication using RSA-PSS with SHA-384.
+Supports [versions 3 and 4](https://github.com/paseto-standard/paseto-spec/tree/master/docs/01-Protocol-Versions), both `local` and `public` tokens. Use version 4 unless you need NIST-approved algorithms. Versions 1 and 2 are deprecated by the spec and not supported.
 
 ## Installation
 
@@ -26,48 +23,71 @@ PASETO is a specification for secure stateless tokens. Unlike JWT, which gives d
 gleam add gaseto
 ```
 
+Needs Erlang/OTP 27 or newer.
+
 ## Usage
 
-Here's an example of how to create and verify a `v3.local` PASETO token:
-
 ```gleam
-import gleam/option.{None}
-import gaseto.{LocalKey}
-import gaseto/token
+import gaseto.{PasetoV4}
+import gleam/option
 
-pub fn main() {
-  let key = LocalKey("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
-  let payload = "{\"data\":\"this is a signed message\",\"exp\":\"2019-01-01T00:00:00+00:00\"}"
+pub fn main() -> Nil {
+  let assert Ok(key) = gaseto.local_key_from_hex(PasetoV4, key_hex)
 
-  let assert Ok(encrypted_token) = gaseto.encrypt(payload, key, token.PasetoV3, None)
-  let token_string = gaseto.to_string(encrypted_token)
-  let assert Ok(decrypted_token) = gaseto.decrypt(token_string, key)
+  let claims = gaseto.new_claims() |> gaseto.with_subject("user-42")
+  let assert Ok(token) = gaseto.encrypt(claims, key)
 
-  let assert True = decrypted_token.payload == payload
+  let assert Ok(decrypted) = gaseto.decrypt(token, key, gaseto.new_rules())
+  assert gaseto.subject(decrypted) == option.Some("user-42")
 }
 ```
 
-For `v3.public`, use a `KeyPair`:
+To choose, load and make keys, see the [keys guide](https://hexdocs.pm/gaseto/keys.html) ([source](https://github.com/atomfinger/gaseto/blob/main/doc/keys.md)).
+
+### Using it with HTTP
+
+Send the token in a response, and read it back from the `Authorization: Bearer <token>` header on later requests. This uses [gleam_http](https://hex.pm/packages/gleam_http), so it works with Wisp, Mist and other servers built on it:
 
 ```gleam
-import gleam/option.{None}
-import gaseto.{KeyPair}
-import gaseto/token
-
-pub fn main() {
-  let key = KeyPair(
-    secret_key: "...",  // 48-byte P-384 private scalar, hex-encoded
-    public_key: "...",  // 49-byte compressed P-384 point, hex-encoded
+// After a login: sign a token and return it
+let claims =
+  gaseto.new_claims()
+  |> gaseto.with_issuer("auth.example.com")
+  |> gaseto.with_subject(user_identifier)
+let assert Ok(token) = gaseto.sign(claims, secret_key)
+let login_response =
+  response.new(200)
+  |> response.set_header("content-type", "application/json")
+  |> response.set_body(
+    json.object([
+      #("access_token", json.string(token)),
+      #("token_type", json.string("Bearer")),
+    ])
+    |> json.to_string,
   )
-  let payload = "{\"data\":\"hello\",\"exp\":\"2025-01-01T00:00:00+00:00\"}"
 
-  let assert Ok(signed_token) = gaseto.encrypt(payload, key, token.PasetoV3, None)
-  let token_string = gaseto.to_string(signed_token)
-  let assert Ok(verified) = gaseto.decrypt(token_string, key)
-
-  let assert True = verified.payload == payload
+// On a later request: verify the token and get the user identifier
+let rules = gaseto.new_rules() |> gaseto.issued_by("auth.example.com")
+let user_identifier = {
+  use authorization <- result.try(request.get_header(request, "authorization"))
+  use token <- result.try(case string.split_once(authorization, " ") {
+    Ok(#(scheme, token)) ->
+      case string.lowercase(scheme) {
+        "bearer" -> Ok(string.trim(token))
+        _ -> Error(Nil)
+      }
+    Error(Nil) -> Error(Nil)
+  })
+  use verified <- result.try(
+    gaseto.verify(token, public_key, rules) |> result.replace_error(Nil),
+  )
+  option.to_result(gaseto.subject(verified), Nil)
 }
 ```
+
+The [HTTP guide](https://hexdocs.pm/gaseto/http.html) ([source](https://github.com/atomfinger/gaseto/blob/main/doc/http.md)) has the full version, including the 401 response. A `gaseto_http` package that does this for you is planned.
+
+The [demo](https://github.com/atomfinger/gaseto/tree/main/demo) directory has small projects that show Gaseto in use.
 
 Further documentation can be found at <https://hexdocs.pm/gaseto>.
 
