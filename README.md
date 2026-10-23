@@ -96,3 +96,12 @@ Further documentation can be found at <https://hexdocs.pm/gaseto>.
 ```sh
 gleam test  # Run the tests
 ```
+
+To check that Gaseto and [go-paseto](https://github.com/aidantwoods/go-paseto)
+accept each other's tokens, which needs Go:
+
+```sh
+(cd interop && go run . make go_tokens.json)
+gleam run -m interop
+(cd interop && go run . check gaseto_tokens.json)
+```

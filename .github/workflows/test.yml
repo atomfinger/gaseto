@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: OTP ${{ matrix.otp }}
@@ -21,7 +24,7 @@ jobs:
           otp-version: ${{ matrix.otp }}
           gleam-version: "1.19.2"
           rebar3-version: "3"
-      - run: gleam format --check src test
+      - run: gleam format --check src test dev
       - run: gleam deps download
       - run: gleam test
       - run: gleam docs build
@@ -32,3 +35,26 @@ jobs:
             (cd "$demo" && gleam format --check src test && gleam test)
             echo "::endgroup::"
           done
+
+  interop:
+    name: Interop with go-paseto
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          gleam-version: "1.19.2"
+          rebar3-version: "3"
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: interop/go.mod
+          cache-dependency-path: interop/go.sum
+      - name: go-paseto makes tokens
+        working-directory: interop
+        run: go run . make go_tokens.json
+      - name: Gaseto checks them and makes its own
+        run: gleam run -m interop
+      - name: go-paseto checks Gaseto's tokens
+        working-directory: interop
+        run: go run . check gaseto_tokens.json
