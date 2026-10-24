@@ -9,7 +9,7 @@
 packages = [
   { name = "bigi", version = "4.1.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "bigi", source = "hex", outer_checksum = "44FEDF1DF5C1F426A80B67C32B976D0828D66524E11BDC2DD22B78D37C883BA7" },
   { name = "eblake2", version = "1.0.0", build_tools = ["rebar3"], requirements = [], otp_app = "eblake2", source = "hex", outer_checksum = "3C4D300A91845B25D501929A26AC2E6F7157480846FAB2347A4C11AE52E08A99" },
-  { name = "gaseto", version = "0.0.1", build_tools = ["gleam"], requirements = ["eblake2", "gleam_crypto", "gleam_json", "gleam_stdlib", "gleam_time", "kryptos"], source = "local", path = "../.." },
+  { name = "gaseto", version = "1.0.0", build_tools = ["gleam"], requirements = ["eblake2", "gleam_crypto", "gleam_json", "gleam_stdlib", "gleam_time", "kryptos"], otp_app = "gaseto", source = "hex", outer_checksum = "8AF7371A2749B8EC66A788484FD2A3BAD77D29A706FFFAE47DA2133D23776C17" },
   { name = "gleam_crypto", version = "1.6.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "2DE9E4EF53CF6FEE049D4F765731F7178F7A11AEFAE00EEE63BF7536B354AD3F" },
   { name = "gleam_json", version = "3.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_json", source = "hex", outer_checksum = "44FDAA8847BE8FC48CA7A1C089706BD54BADCC4C45B237A992EDDF9F2CDB2836" },
   { name = "gleam_stdlib", version = "1.0.5", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "CEE5B6C076A85B45F60C585F4316C63EC8B7127C119D5738C3958A9C4D50404E" },
@@ -19,6 +19,6 @@ packages = [
 ]
 
 [requirements]
-gaseto = { path = "../.." }
+gaseto = { version = ">= 1.0.0 and < 2.0.0" }
 gleam_stdlib = { version = ">= 0.44.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
