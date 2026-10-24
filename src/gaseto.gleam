@@ -9,8 +9,8 @@
 //// with a secret key and checked with the matching public key. Anyone can
 //// read the claims in a public token.
 ////
-//// Versions 3 and 4 are supported. Use version 4 unless you need NIST
-//// algorithms, then use version 3. Versions 1 and 2 are deprecated by the
+//// Versions 3 and 4 are supported. Use version 4 unless you are limited to
+//// NIST-approved algorithms, then use version 3, which uses them throughout. Versions 1 and 2 are deprecated by the
 //// spec and not supported.
 ////
 //// ```gleam
@@ -22,9 +22,9 @@
 //// // -> Some("user-42")
 //// ```
 ////
-//// To send tokens in HTTP responses and check them on requests, see
-//// [Using Gaseto with HTTP](http.html). To choose, load and make keys, see
-//// [Keys](keys.html).
+//// To send tokens in HTTP responses and check them on requests, use
+//// [gaseto_http](https://github.com/atomfinger/gaseto_http). To choose, load
+//// and make keys, see [Keys](keys.html).
 
 import gaseto/error
 import gaseto/internal/claims as internal_claims
@@ -48,7 +48,7 @@ import gleam/time/timestamp.{type Timestamp}
 /// ([Protocol Versions](https://github.com/paseto-standard/paseto-spec/blob/master/docs/01-Protocol-Versions/README.md)).
 pub type PasetoVersion {
   /// AES-256-CTR with HMAC-SHA-384, and ECDSA with P-384. Use it when you
-  /// need NIST-approved algorithms.
+  /// are limited to NIST-approved algorithms.
   PasetoV3
   /// XChaCha20 with BLAKE2b, and Ed25519. Use this one unless you need
   /// version 3.
@@ -88,7 +88,7 @@ pub opaque type Token {
 /// ([Registered Claims](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/04-Claims.md#payload-claims)),
 /// which mean the same as in JWT
 /// ([RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519#section-4.1)),
-/// and you can add your own. A token can also have a footer and an implicit
+/// except that times are written as RFC 3339 text. You can add your own. A token can also have a footer and an implicit
 /// assertion. Start with `new_claims`.
 pub opaque type Claims {
   Claims(builder: internal_claims.Builder)
@@ -166,8 +166,8 @@ pub fn public_key_from_hex(
 }
 
 /// Makes a secret key from a PEM file: an Ed25519 key in PKCS #8 for version
-/// 4, or a P-384 key in SEC1 or PKCS #8 for version 3. These are what
-/// `openssl genpkey` writes.
+/// 4, or a P-384 key in SEC1 or PKCS #8 for version 3. `openssl genpkey`
+/// writes PKCS #8, and `openssl ecparam -genkey` writes SEC1.
 ///
 /// ```gleam
 /// let assert Ok(secret_key) =
@@ -311,8 +311,9 @@ pub fn with_token_identifier(
   Claims(internal_claims.Builder(..claims.builder, token_identifier:))
 }
 
-/// Sets `exp` (expiration) to this time. After it, the token is refused
+/// Sets `exp` (expiration) to this time
 /// ([RFC 7519, `exp`](https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.4)).
+/// After it, the token is refused ([Validators](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/02-Validators.md)).
 /// Fractions of a second are left out, as the spec recommends
 /// ([Registered Claims](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/04-Claims.md#payload-claims)).
 pub fn with_expires_at(claims: Claims, time: Timestamp) -> Claims {
@@ -320,9 +321,9 @@ pub fn with_expires_at(claims: Claims, time: Timestamp) -> Claims {
   Claims(internal_claims.Builder(..claims.builder, expiration:))
 }
 
-/// Sets `exp` (expiration) to this long after the token is created. After
-/// that, the token is refused
+/// Sets `exp` (expiration) to this long after the token is created
 /// ([RFC 7519, `exp`](https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.4)).
+/// After that, the token is refused ([Validators](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/02-Validators.md)).
 pub fn expires_in(claims: Claims, duration: Duration) -> Claims {
   let expiration = internal_claims.ExpiresIn(duration)
   Claims(internal_claims.Builder(..claims.builder, expiration:))
@@ -346,8 +347,9 @@ pub fn with_not_before(claims: Claims, time: Timestamp) -> Claims {
 }
 
 /// Sets `iat` (issued at), when the token was made, to this time instead of
-/// the time the token is created. A token issued in the future is refused
+/// the time the token is created
 /// ([RFC 7519, `iat`](https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.6)).
+/// A token issued in the future is refused ([Validators](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/02-Validators.md)).
 /// Fractions of a second are left out, as the spec recommends
 /// ([Registered Claims](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/04-Claims.md#payload-claims)).
 pub fn with_issued_at(claims: Claims, time: Timestamp) -> Claims {
@@ -386,8 +388,8 @@ pub fn with_footer(claims: Claims, footer: BitArray) -> Claims {
   Claims(internal_claims.Builder(..claims.builder, footer:))
 }
 
-/// Adds an implicit assertion: data that is checked like the claims but not
-/// stored in the token. The reader must give the same value with
+/// Adds an implicit assertion: data that is covered by the tag or signature
+/// but not stored in the token. The reader must give the same value with
 /// `expect_implicit_assertion`, or the token is refused. Use it to tie a token
 /// to something both sides already know, such as a user identifier, without
 /// putting it in the token
@@ -484,8 +486,8 @@ pub fn allow_token_length(rules: Rules, up_to max_length: Int) -> Rules {
 }
 
 /// Requires the token to have been made with this implicit assertion. An
-/// implicit assertion is data that is checked like the claims but not stored
-/// in the token, so the reader has to know it already. See
+/// implicit assertion is data that is covered by the tag or signature but not
+/// stored in the token, so the reader has to know it already. See
 /// `with_implicit_assertion`
 /// ([Implicit Assertions](https://github.com/paseto-standard/paseto-spec/blob/master/docs/README.md#implicit-assertions)).
 pub fn expect_implicit_assertion(

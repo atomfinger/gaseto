@@ -27,8 +27,9 @@ type Scan {
 
 /// A footer can be read before the token is checked, so it may come from an
 /// attacker. Very deep nesting can exhaust a JSON parser, and very many keys
-/// allow hash-collision attacks, so the spec asks for both to be limited
-/// before parsing
+/// allow hash-collision attacks. The spec requires a way to check a JSON
+/// footer before parsing it, and gives limits on length, depth and keys as
+/// examples
 /// ([Storing JSON in the Footer](https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/01-Payload-Processing.md#storing-json-in-the-footer)).
 ///
 /// This reads each byte once and only looks at quotes, backslashes, brackets

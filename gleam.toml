@@ -1,5 +1,5 @@
 name = "gaseto"
-version = "0.0.1"
+version = "1.0.0"
 target = "erlang"
 gleam = ">= 1.12.0"
 
@@ -9,7 +9,6 @@ repository = { type = "github", user = "atomfinger", repo = "gaseto" }
 
 [documentation]
 pages = [
-  { title = "Using Gaseto with HTTP", path = "http.html", source = "./doc/http.md" },
   { title = "Keys", path = "keys.html", source = "./doc/keys.md" },
 ]
 

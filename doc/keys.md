@@ -18,8 +18,8 @@ gives
   gives out tokens which your APIs check. Only the login service has the
   secret key.
 
-Each key belongs to one version. Use version 4 unless you need NIST-approved
-algorithms, then use version 3. A key for one version does not work with the
+Each key belongs to one version. Use version 4 unless you are limited to
+NIST-approved algorithms, then use version 3, which uses them throughout. A key for one version does not work with the
 other.
 
 ## Loading keys
@@ -57,7 +57,7 @@ Gaseto reads keys as hex, and secret and public keys also as PEM. In hex:
 | Key | Version 4 | Version 3 |
 |---|---|---|
 | Local key | 32 random bytes | 32 random bytes |
-| Secret key | An [Ed25519](https://datatracker.ietf.org/doc/html/rfc8032) seed (32 bytes), followed by its public key (32 bytes) | A [P-384](https://csrc.nist.gov/pubs/sp/800/186/final) secret key (48 bytes) |
+| Secret key | An [Ed25519](https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.5) seed (32 bytes), followed by its public key (32 bytes) | A [P-384](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-186.pdf) secret key (48 bytes) |
 | Public key | An Ed25519 public key (32 bytes) | A compressed P-384 point (49 bytes) |
 
 Version 3 signs with [ECDSA](https://csrc.nist.gov/pubs/fips/186-5/final).
@@ -96,7 +96,7 @@ A key pair, with
 4:
 
 ```sh
-openssl genpkey -algorithm ed25519 -out secret_key.pem
+openssl genpkey -algorithm ED25519 -out secret_key.pem
 openssl pkey -in secret_key.pem -pubout -out public_key.pem
 ```
 

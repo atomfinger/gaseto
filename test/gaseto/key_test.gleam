@@ -316,7 +316,8 @@ fn ed25519_public_key_pem(key_hex: String) -> String {
 }
 
 pub fn version_3_pem_secret_key_with_a_short_scalar_is_padded_test() -> Nil {
-  // SEC1 allows the scalar without its leading zero byte: 47 bytes here
+  // Some tools leave out the scalar's leading zero byte, though SEC1 requires
+  // the full 48 bytes (RFC 5915): 47 bytes here
   let scalar_hex = string.repeat("11", 47)
   let assert Ok(der) =
     bit_array.base16_decode(

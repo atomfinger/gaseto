@@ -3,8 +3,8 @@
 
 %% The spec requires unique key names
 %% (https://github.com/paseto-standard/paseto-spec/blob/master/docs/02-Implementation-Guide/01-Payload-Processing.md),
-%% but OTP's `json:decode`, which gleam_json uses, keeps only the last value of
-%% a repeated key. This decodes once, refuses repeated keys, and returns the
+%% but OTP's `json:decode`, which gleam_json uses, keeps only the first value
+%% of a repeated key. This decodes once, refuses repeated keys, and returns the
 %% value for Gaseto's decoders.
 decode_object_with_unique_keys(Json) ->
     Decoders = #{

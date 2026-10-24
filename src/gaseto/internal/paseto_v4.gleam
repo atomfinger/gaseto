@@ -47,10 +47,10 @@ const public_signature_size: Int = 64
 
 /// Ed25519 public keys of small order, compared with the sign bit cleared. A
 /// signature for one of these can be forged without the secret key. The spec
-/// checks signatures with libsodium
+/// writes the check as libsodium's `crypto_sign_verify_detached`
 /// ([version 4, Verify](https://github.com/paseto-standard/paseto-spec/blob/master/docs/01-Protocol-Versions/Version4.md#verify)),
 /// which refuses these keys
-/// ([`crypto_sign_verify_detached`](https://github.com/jedisct1/libsodium/blob/master/src/libsodium/crypto_sign/ed25519/ref10/open.c)),
+/// ([libsodium 1.0.18, `ge25519_has_small_order`](https://github.com/jedisct1/libsodium/blob/1.0.18/src/libsodium/crypto_core/ed25519/ref10/ed25519_ref10.c)),
 /// so Gaseto refuses them too.
 const small_order_public_keys: List(BitArray) = [
   <<
