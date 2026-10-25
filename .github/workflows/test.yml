@@ -46,7 +46,7 @@ jobs:
           otp-version: "29"
           gleam-version: "1.19.2"
           rebar3-version: "3"
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: interop/go.mod
           cache-dependency-path: interop/go.sum
