@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     name: OTP ${{ matrix.otp }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +38,7 @@ jobs:
 
   interop:
     name: Interop with go-paseto
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
