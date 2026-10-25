@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "A library keeps its lower bounds and only widens its ranges",
+      "matchManagers": ["gleam"],
+      "rangeStrategy": "widen"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The Gleam version used in CI",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": ["gleam-version: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "gleam-lang/gleam",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ]
+}
