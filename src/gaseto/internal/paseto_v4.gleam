@@ -2,13 +2,12 @@
 
 import gaseto/error.{
   InvalidPem, PublicHalfDoesNotMatchSeed, SmallOrderPublicKey, TokenNotAuthentic,
-  UnexpectedCreationFailure, UnexpectedKeyFailure,
+  UnexpectedCreationFailure, UnexpectedKeyFailure, UnexpectedValidationFailure,
 }
 import gaseto/internal/pem
 import gaseto/internal/protocol.{
   type Contents, type TokenParts, Contents, LocalBody, SignedBody,
 }
-import gaseto/internal/xchacha20
 import gleam/bit_array
 import gleam/bool
 import gleam/crypto
@@ -16,6 +15,7 @@ import gleam/int
 import gleam/list
 import gleam/result
 import kryptos/eddsa
+import kryptos/stream
 
 const local_header: String = "v4.local."
 
@@ -238,12 +238,10 @@ pub fn encrypt(
   })
   let #(encryption_key, xchacha20_nonce, authentication_key) =
     derive_local_keys(key.bytes, nonce)
-  let ciphertext =
-    xchacha20.encrypt(
-      encryption_key,
-      xchacha20_nonce,
-      bit_array.from_string(payload),
-    )
+  use ciphertext <- result.try(
+    xchacha20(encryption_key, xchacha20_nonce, bit_array.from_string(payload))
+    |> result.map_error(UnexpectedCreationFailure),
+  )
   let authentication_tag =
     local_authentication_tag(
       authentication_key,
@@ -290,7 +288,10 @@ pub fn decrypt(
       False -> Error(TokenNotAuthentic)
     },
   )
-  let plaintext = xchacha20.encrypt(encryption_key, xchacha20_nonce, ciphertext)
+  use plaintext <- result.try(
+    xchacha20(encryption_key, xchacha20_nonce, ciphertext)
+    |> result.map_error(UnexpectedValidationFailure),
+  )
   use payload <- result.try(protocol.payload_to_string(plaintext))
   Ok(Contents(payload:, footer: protocol.footer(parts)))
 }
@@ -391,4 +392,17 @@ fn derive_local_keys(
       master_key,
     )
   #(encryption_key, xchacha20_nonce, authentication_key)
+}
+
+fn xchacha20(
+  encryption_key: BitArray,
+  nonce: BitArray,
+  data: BitArray,
+) -> Result(BitArray, String) {
+  use cipher <- result.try(
+    stream.xchacha20(encryption_key, nonce:, counter: 0)
+    |> result.replace_error("setting up XChaCha20 failed"),
+  )
+  stream.xor(cipher, data)
+  |> result.replace_error("running XChaCha20 failed")
 }
