@@ -1,5 +1,5 @@
 name = "gaseto"
-version = "1.0.0"
+version = "1.0.1"
 target = "erlang"
 gleam = ">= 1.12.0"
 
@@ -15,7 +15,7 @@ pages = [
 [dependencies]
 gleam_stdlib = ">= 0.44.0 and < 2.0.0"
 gleam_crypto = ">= 1.5.1 and < 2.0.0"
-kryptos = ">= 1.5.0 and < 2.0.0"
+kryptos = ">= 1.6.0 and < 2.0.0"
 eblake2 = ">= 1.0.0 and < 2.0.0"
 gleam_json = ">= 3.1.0 and < 4.0.0"
 gleam_time = ">= 1.11.0 and < 2.0.0"

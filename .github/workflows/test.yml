@@ -1,6 +1,9 @@
 name: test
 
 on:
+  # Weekly, so a change in Gleam nightly shows up without a push
+  schedule:
+    - cron: "0 0 * * 1"
   push:
     branches: [main]
   pull_request:
@@ -9,22 +12,39 @@ permissions:
   contents: read
 
 jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          gleam-version: "1.19.2"
+          rebar3-version: "3"
+      - run: gleam format --check src test dev
+      - name: Check the demos
+        run: |
+          for demo in demo/*/; do
+            (cd "$demo" && gleam format --check src test)
+          done
+
   test:
-    name: OTP ${{ matrix.otp }}
+    name: OTP ${{ matrix.otp }}, Gleam ${{ matrix.gleam }}
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         # The oldest OTP Gaseto supports, and the newest
         otp: ["27", "29"]
+        gleam: ["1.18", "1.19", "nightly"]
     steps:
       - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otp }}
-          gleam-version: "1.19.2"
+          gleam-version: ${{ matrix.gleam }}
           rebar3-version: "3"
-      - run: gleam format --check src test dev
       - run: gleam deps download
       - run: gleam test
       - run: gleam docs build
@@ -32,7 +52,7 @@ jobs:
         run: |
           for demo in demo/*/; do
             echo "::group::$demo"
-            (cd "$demo" && gleam format --check src test && gleam test)
+            (cd "$demo" && gleam test)
             echo "::endgroup::"
           done
 
